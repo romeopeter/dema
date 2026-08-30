@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/plus-jakarta-sans/700.css";
+@import "@fontsource/plus-jakarta-sans/800.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+
+/*
+  Brand variables. These are the only colours that change: `applyTheme` rewrites them at
+  runtime from the saved brand theme. Text, greys and status tints below never move.
+*/
+:root {
+  --brand-primary: #8fcb8d;
+  --brand-secondary: #f3a995;
+  --brand-tertiary: #f6d9a9;
+  --brand-soft: #d8ecd6;
+  --brand-edge: #c7e4c5;
+  --brand-on: #ffffff;
+  --brand-hover: #7bbf79;
+  --brand-pressed: #6bae69;
+}
+
+@theme {
+  --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  /* Brand — themeable */
+  --color-bp: var(--brand-primary);
+  --color-bs: var(--brand-secondary);
+  --color-bt: var(--brand-tertiary);
+  --color-bp-soft: var(--brand-soft);
+  --color-bp-edge: var(--brand-edge);
+  --color-on-bp: var(--brand-on);
+  --color-bp-hover: var(--brand-hover);
+  --color-bp-pressed: var(--brand-pressed);
+
+  /* Neutrals — fixed */
+  --color-ink: #1a2b49;
+  --color-muted: #8b93a6;
+  --color-faint: #b8bfcc;
+  --color-line: #e4e6eb;
+  --color-divider: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-canvas: #f3f4f6;
+  --color-page: #ecedf0;
+  --color-subtle: #fafbfc;
+  --color-sunken: #ecedf0;
+  --color-hairline: #dadee5;
+
+  /* Status */
+  --color-link: #4c8fe5;
+  --color-alert: #e5604d;
+  --color-alert-bg: #fdf1ef;
+  --color-success: #4caf6d;
+  --color-warn-bg: #fdf3e7;
+  --color-warn-line: #f0c58a;
+  --color-warn-title: #7a4e0b;
+  --color-warn-body: #8a6220;
+
+  /* Fixed category / status tints, straight from the token sheet */
+  --color-tint-peach: #f6d9a9;
+  --color-tint-blue: #b8dcf0;
+  --color-tint-pink: #f0c6d9;
+  --color-tint-yellow: #f0e3a9;
+  --color-tint-lavender: #ddd4f0;
+  --color-tint-mint: #c3ede0;
+  --color-tint-grey: #dadee5;
+
+  --shadow-row: 0 1px 2px rgba(26, 43, 73, 0.06);
+  --shadow-card: 0 4px 12px rgba(26, 43, 73, 0.08);
+  --shadow-lift: 0 4px 12px rgba(26, 43, 73, 0.1);
+  --shadow-panel: 0 16px 40px rgba(26, 43, 73, 0.16);
+
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-page);
+    font-family: var(--font-body);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  a {
+    color: var(--color-link);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--color-ink);
+  }
+
+  ::selection {
+    background: var(--brand-soft);
+  }
+
+  /* Money and table figures line up column-wise. */
+  .tnum {
+    font-family: var(--font-body);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+
+  /* The primary button's glow is tinted with the live brand colour. */
+  .shadow-brand {
+    box-shadow: 0 8px 24px
+      color-mix(in srgb, var(--brand-primary) 35%, transparent);
+  }
+
+  /* Thin, unobtrusive scrollbars inside cards. */
+  .scroll-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-hairline) transparent;
+  }
+
+  .scroll-area::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .scroll-area::-webkit-scrollbar-thumb {
+    background: var(--color-hairline);
+    border-radius: 999px;
+  }
+}
