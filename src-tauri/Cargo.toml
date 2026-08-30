@@ -1,0 +1,33 @@
+[package]
+name = "dext"
+version = "0.1.0"
+description = "DEXT — local-first desktop finance ledger"
+authors = ["Duowork"]
+edition = "2021"
+rust-version = "1.84"
+
+[lib]
+name = "dext_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Pinned to the pair that builds on the toolchain in use: rusqlite_migration 2.6 needs
+# rustc 1.95, and 2.5 pairs with rusqlite 0.39.
+rusqlite = { version = "0.39", features = ["bundled"] }
+rusqlite_migration = "~2.5.0"
+thiserror = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
