@@ -1,9 +1,9 @@
 {
-  "name": "dext",
+  "name": "dema",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "DEXT — a local-first desktop finance ledger for personal and business books.",
+  "description": "Dema — a local-first desktop finance ledger for personal and business books.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

@@ -1,4 +1,4 @@
--- DEXT core schema.
+-- Dema core schema.
 -- All money is stored as integer minor units (kobo). Never floats.
 
 CREATE TABLE profiles (

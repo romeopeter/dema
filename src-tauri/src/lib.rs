@@ -19,7 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // The ledger lives beside the app's own data, not in the user's Documents.
-            let path = app.path().app_data_dir()?.join("dext.sqlite3");
+            let path = app.path().app_data_dir()?.join("dema.sqlite3");
             let conn = db::open(&path)?;
             app.manage(AppState::new(conn));
             Ok(())
@@ -61,5 +61,5 @@ pub fn run() {
             commands::settings::set_settings,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running DEXT");
+        .expect("error while running Dema");
 }

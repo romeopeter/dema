@@ -77,7 +77,7 @@ export function Sidebar({
         </div>
         {collapsed ? null : (
           <div className="font-display text-[19px] font-bold tracking-[0.04em] whitespace-nowrap">
-            DEXT
+            Dema
           </div>
         )}
       </div>

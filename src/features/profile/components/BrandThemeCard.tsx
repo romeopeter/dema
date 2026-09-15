@@ -102,7 +102,7 @@ export function BrandThemeCard() {
           <div className="max-w-[520px] text-[14px] text-pretty text-muted">
             Applies to buttons, links, nav, charts, pills, card accents and the
             invoice header. Business profile only — your personal book always
-            stays on the DEXT palette.
+            stays on the Dema palette.
           </div>
         </div>
         <div className="flex items-center gap-[10px]">

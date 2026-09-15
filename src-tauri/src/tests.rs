@@ -1,4 +1,4 @@
-//! Acceptance tests for the guarantees DEXT makes about a person's books.
+//! Acceptance tests for the guarantees Dema makes about a person's books.
 //!
 //! These run against a real in-memory SQLite with the real migrations, and call the same
 //! functions the Tauri commands call — the commands themselves are one-line wrappers.

@@ -49,7 +49,7 @@ export function Reports() {
 
   async function exportAs(format: "csv" | "pdf") {
     if (!profile) return;
-    const suggested = `dext-report-${fromDate}-to-${toDate}.${format}`;
+    const suggested = `dema-report-${fromDate}-to-${toDate}.${format}`;
     const path = await save({
       defaultPath: suggested,
       filters: [

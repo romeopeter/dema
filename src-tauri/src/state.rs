@@ -4,7 +4,7 @@ use rusqlite::Connection;
 
 use crate::error::AppResult;
 
-/// One connection, guarded by a mutex. SQLite serialises writes anyway and DEXT is a
+/// One connection, guarded by a mutex. SQLite serialises writes anyway and Dema is a
 /// single-user local app, so a pool would buy nothing.
 pub struct AppState {
     pub db: Mutex<Connection>,

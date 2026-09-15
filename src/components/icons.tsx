@@ -1,7 +1,7 @@
 import type { SVGProps } from "react";
 
 /**
- * Every icon in DEXT is an inline stroked path at 18–22px, `stroke-width` 1.6–2,
+ * Every icon in Dema is an inline stroked path at 18–22px, `stroke-width` 1.6–2,
  * round caps and joins, inheriting `currentColor` where it sits on themed surfaces.
  * The category glyph set is keyed by the `icon` column on `categories`.
  */

@@ -100,13 +100,13 @@ export function Onboarding() {
             D
           </div>
           <div className="font-display text-[22px] font-bold tracking-[0.04em]">
-            DEXT
+            Dema
           </div>
         </div>
 
         <div className="flex flex-col gap-3">
           <h1 className="m-0 font-display text-[40px] leading-[46px] font-bold">
-            How will you use DEXT?
+            How will you use Dema?
           </h1>
           <p className="m-0 max-w-[420px] text-[16px] leading-6 text-pretty text-muted">
             Pick a profile to start with. You can add the other one any time from
@@ -248,7 +248,7 @@ export function Onboarding() {
             </div>
           </div>
           <div className="text-[13px] text-pretty text-muted">
-            Mark an invoice paid and DEXT posts the matching income transaction
+            Mark an invoice paid and Dema posts the matching income transaction
             for you.
           </div>
         </div>

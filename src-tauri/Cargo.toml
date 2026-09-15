@@ -1,13 +1,13 @@
 [package]
-name = "dext"
+name = "dema"
 version = "0.1.0"
-description = "DEXT — local-first desktop finance ledger"
+description = "Dema — local-first desktop finance ledger"
 authors = ["Duowork"]
 edition = "2021"
 rust-version = "1.84"
 
 [lib]
-name = "dext_lib"
+name = "dema_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

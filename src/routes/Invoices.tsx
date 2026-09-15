@@ -113,7 +113,7 @@ export function Invoices() {
           <EmptyState
             icon={<InvoiceIcon size={40} />}
             title="No invoices yet"
-            body="Raise your first invoice. When you mark it paid, DEXT posts the matching income transaction for you."
+            body="Raise your first invoice. When you mark it paid, Dema posts the matching income transaction for you."
             actions={
               <Button size="lg" onClick={() => navigate("/invoices/new")}>
                 Create an invoice

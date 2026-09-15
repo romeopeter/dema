@@ -20,7 +20,7 @@ export interface BrandPreset {
 }
 
 export const BRAND_PRESETS: BrandPreset[] = [
-  { id: "factory", name: "DEXT default", note: "Factory theme", p: "#8FCB8D", s: "#F3A995", t: "#F6D9A9" },
+  { id: "factory", name: "Dema default", note: "Factory theme", p: "#8FCB8D", s: "#F3A995", t: "#F6D9A9" },
   { id: "ink", name: "Deep ink", note: "Consulting, legal, finance", p: "#2F5AA8", s: "#E8894B", t: "#7C8FB5" },
   { id: "clay", name: "Warm clay", note: "Studios, agencies, retail", p: "#C4633F", s: "#3E7F6D", t: "#E3B84F" },
   { id: "orchid", name: "Orchid", note: "Beauty, events, lifestyle", p: "#7A4BC4", s: "#E4657F", t: "#F0B45C" },

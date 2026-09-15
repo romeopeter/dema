@@ -142,7 +142,7 @@ fn report_csv(report: &Report) -> String {
         };
 
     let mut out = String::new();
-    out.push_str("DEXT category report\n");
+    out.push_str("Dema category report\n");
     out.push_str(&format!("Profile,{}\n", csv_field(&report.profile_name)));
     out.push_str(&format!("Period,{} to {}\n", report.from_date, report.to_date));
     out.push_str("Basis,Posted transactions only (drafts excluded)\n");
@@ -212,7 +212,7 @@ fn report_pdf(report: &Report) -> Vec<u8> {
 
     let mut doc = Pdf::new();
 
-    doc.text(0.0, "DEXT category report", 20.0, Font::Bold, Align::Left);
+    doc.text(0.0, "Dema category report", 20.0, Font::Bold, Align::Left);
     doc.advance(22.0);
     doc.text(0.0, &report.profile_name, 12.0, Font::Regular, Align::Left);
     doc.advance(16.0);

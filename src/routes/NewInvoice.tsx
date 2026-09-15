@@ -354,7 +354,7 @@ export function NewInvoice() {
           </div>
 
           <div className="mt-auto rounded-[20px] bg-bp-soft px-[18px] py-4 text-[13px] leading-[19px] text-ink">
-            When this invoice is marked paid, DEXT posts a linked income
+            When this invoice is marked paid, Dema posts a linked income
             transaction for {money(total)}.
           </div>
         </Card>

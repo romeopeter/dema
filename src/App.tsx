@@ -37,7 +37,7 @@ export function App() {
       <div className="flex h-full items-center justify-center p-10">
         <div className="w-[520px]">
           <ErrorNote
-            message={`DEXT could not open your ledger. ${error}`}
+            message={`Dema could not open your ledger. ${error}`}
             onRetry={() => window.location.reload()}
           />
         </div>
