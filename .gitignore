@@ -7,5 +7,7 @@ dist
 src-tauri/target
 src-tauri/gen
 
+CLAUDE.md
+
 # design bundle is a handoff reference, not source
 /design_handoff_dext_desktop
