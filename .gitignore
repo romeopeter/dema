@@ -9,5 +9,6 @@ src-tauri/gen
 
 CLAUDE.md
 
-# design bundle is a handoff reference, not source
+# design bundles are handoff references, not source
 /design_handoff_dext_desktop
+/design_handoff_invoice
