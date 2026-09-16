@@ -81,6 +81,25 @@ happens only in Settings → Active profile; the sidebar chip navigates there ra
 switching in place. Categories are checked against the profile on write, so business
 spending cannot land in the personal book.
 
+### The printable invoice
+
+`/invoices/:id/document` renders the A4 sheet and prints it. The route sits *outside* the
+app shell so printing only has to drop the control strip, and the footer is `position:
+fixed` in print, which is how WebKit repeats it on every page.
+
+The split that matters: issuer identity, bank details, logo, signature, RC and TIN live on
+the **business profile** (`business_details`) and are read at render time; amounts, line
+items and which rows print live on the **invoice record**. Correcting your address fixes
+every future invoice without rewriting the ones already sent.
+
+Tax sits on each line rather than the invoice header, so one invoice can mix a VAT-able
+service with a zero-rated disbursement. `totals_for` groups lines by rate and rounds once
+per group — splitting the same money across more lines never changes the tax.
+
+The sheet is read-only. The prototype made every field `contenteditable`, which its own
+handoff calls a prototype convenience; typing into paper that saves nothing is worse than
+no affordance at all, so editing happens in the invoice form and in Settings.
+
 ### Reactivity
 
 `mutate()` in `src/lib/mutate.ts` runs a mutation then bumps a revision counter that
@@ -106,7 +125,9 @@ offering every category regardless — otherwise "Salary" is selectable as an ex
 
 ## Still open
 
-- Invoices are not rendered to PDF or emailed; only the report exports (CSV and PDF).
+- "Export PDF" on the invoice opens the system print dialog, where the PDF is saved from
+  the dialog itself. There is no silent save-to-file path.
+- Invoices are not emailed.
 - The reminder preference is stored and drives the notification panel, but there is no
   scheduled nudge.
 - Fonts are self-hosted via `@fontsource`; the onboarding photograph ships as supplied.
