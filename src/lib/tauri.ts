@@ -2,12 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type {
   AppError,
+  BusinessDetails,
   Category,
   Client,
   ClientInput,
   DashboardSummary,
+  DocumentRows,
   Invoice,
   InvoiceDetail,
+  InvoiceDocument,
   InvoiceInput,
   InvoiceSummary,
   NewCategory,
@@ -164,6 +167,25 @@ export const deleteInvoice = (id: number) =>
 
 export const invoiceSummary = (profileId: number) =>
   invoke<InvoiceSummary>("invoice_summary", { profileId });
+
+/** Invoice + items + client + business details, in one call. */
+export const invoiceDocument = (id: number) =>
+  invoke<InvoiceDocument>("invoice_document", { id });
+
+/**
+ * Row visibility only. Separate from `updateInvoice` because it stays available on a
+ * paid invoice — it changes what prints, not what is owed.
+ */
+export const setInvoiceRows = (id: number, show: DocumentRows) =>
+  invoke<InvoiceDetail>("set_invoice_rows", { id, show });
+
+/* ------------------------------------------------------------ business details */
+
+export const getBusinessDetails = (profileId: number) =>
+  invoke<BusinessDetails>("get_business_details", { profileId });
+
+export const setBusinessDetails = (input: BusinessDetails) =>
+  invoke<BusinessDetails>("set_business_details", { input });
 
 /* ----------------------------------------------------------------- reports */
 

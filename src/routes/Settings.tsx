@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle, Divider, RadioDot, Switch } from "@/components/ui/controls";
 import { OutlineInput } from "@/components/ui/field";
 import { BrandThemeCard } from "@/features/profile/components/BrandThemeCard";
+import { BusinessDetailsCard } from "@/features/profile/components/BusinessDetailsCard";
 import { CategoriesCard } from "@/features/profile/components/CategoriesCard";
 import { mutate } from "@/lib/mutate";
 import { renameProfile } from "@/lib/tauri";
@@ -279,6 +280,8 @@ export function Settings() {
           </div>
         </Card>
       </div>
+
+      {active?.type === "business" ? <BusinessDetailsCard /> : null}
 
       {active?.type === "business" ? <BrandThemeCard /> : null}
 

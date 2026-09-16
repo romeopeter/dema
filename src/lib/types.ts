@@ -126,12 +126,18 @@ export interface Invoice {
   status: InvoiceStatus;
   displayStatus: InvoiceDisplayStatus;
   subtotalCents: number;
+  /** The default rate applied to new lines; each line carries its own. */
   vatRateBp: number;
   vatCents: number;
+  discountCents: number;
+  amountPaidCents: number;
   totalAmountCents: number;
+  /** total - amount paid, derived in Rust. */
+  balanceDueCents: number;
   notes: string | null;
   paidAt: string | null;
   transactionId: number | null;
+  show: DocumentRows;
 }
 
 export interface LineItem {
@@ -141,6 +147,8 @@ export interface LineItem {
   quantity: number;
   unitPriceCents: number;
   position: number;
+  /** This line's tax rate in basis points; 750 is Nigeria's 7.5% VAT. */
+  taxRateBp: number;
   amountCents: number;
 }
 
@@ -148,6 +156,20 @@ export interface LineItemInput {
   description: string;
   quantity: number;
   unitPriceCents: number;
+  /** Omitted means "use the invoice's default rate". */
+  taxRateBp?: number | null;
+}
+
+/** Which rows the printed document shows. Persisted per invoice. */
+export interface DocumentRows {
+  subtotal: boolean;
+  discount: boolean;
+  vat: boolean;
+  paid: boolean;
+  balance: boolean;
+  grand: boolean;
+  notes: boolean;
+  signature: boolean;
 }
 
 /** `InvoiceDetail` flattens `Invoice` on the Rust side, so it is Invoice + items. */
@@ -161,7 +183,42 @@ export interface InvoiceInput {
   status: "draft" | "sent";
   notes?: string | null;
   vatRateBp?: number | null;
+  discountCents?: number;
+  amountPaidCents?: number;
+  show?: DocumentRows | null;
   items: LineItemInput[];
+}
+
+/**
+ * The issuer half of an invoice. Lives on the business profile, so correcting the
+ * address fixes every future document without rewriting history.
+ */
+export interface BusinessDetails {
+  profileId: number;
+  address: string | null;
+  email: string | null;
+  phone: string | null;
+  logoDataUrl: string | null;
+  signatureDataUrl: string | null;
+  signerName: string | null;
+  signerRole: string | null;
+  bankName: string | null;
+  accountName: string | null;
+  accountNumber: string | null;
+  rcNumber: string | null;
+  tin: string | null;
+  paymentInstruction: string | null;
+}
+
+/** Everything the printable document needs, assembled in one Rust call. */
+export interface InvoiceDocument {
+  invoice: Invoice;
+  items: LineItem[];
+  client: Client;
+  businessName: string;
+  business: BusinessDetails;
+  /** Fields still to fill in before this prints well. */
+  missing: string[];
 }
 
 export interface InvoiceSummary {

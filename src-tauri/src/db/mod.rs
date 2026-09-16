@@ -10,6 +10,7 @@ fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(include_str!("migrations/0001_init.sql")),
         M::up(include_str!("migrations/0002_app_settings.sql")),
+        M::up(include_str!("migrations/0003_invoice_document.sql")),
     ])
 }
 

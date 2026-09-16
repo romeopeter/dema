@@ -173,6 +173,14 @@ export function InvoiceDetailPanel({
             : "Marking paid posts a linked income transaction."}
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => navigate(`/invoices/${invoice.id}/document`)}
+          >
+            Open document
+          </Button>
+
           {paid ? (
             <Button
               variant="secondary"

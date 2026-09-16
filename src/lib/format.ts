@@ -40,6 +40,26 @@ export function money(cents: number, options: { sign?: boolean } = {}): string {
   return `${negative ? "−" : "+"}${body}`;
 }
 
+/**
+ * `₦1,505,000.00` — always two decimals, for the printed invoice. A document that
+ * writes `₦1,505,000` next to `₦46,800.50` looks like a rounding error to whoever is
+ * paying it, so the template never uses the shorter `money()`.
+ */
+export function moneyExact(cents: number, options: { sign?: boolean } = {}): string {
+  const negative = cents < 0;
+  const abs = Math.abs(Math.trunc(cents));
+  const body = `${NAIRA}${group(String(Math.floor(abs / 100)))}.${String(abs % 100).padStart(2, "0")}`;
+  if (!options.sign) return body;
+  return `${negative ? "−" : ""}${body}`;
+}
+
+/** A basis-point rate as a percentage label: 750 -> `7.5%`, 0 -> `—`. */
+export function taxRateLabel(bp: number): string {
+  if (bp === 0) return "—";
+  const percent = bp / 100;
+  return `${Number.isInteger(percent) ? percent : percent.toFixed(1)}%`;
+}
+
 /** Bare number with grouping, for inputs and table cells that carry their own symbol. */
 export function amountOnly(cents: number): string {
   const abs = Math.abs(Math.trunc(cents));

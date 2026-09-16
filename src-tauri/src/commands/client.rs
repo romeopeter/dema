@@ -6,7 +6,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::client::{Client, ClientInput};
 use crate::state::AppState;
 
-fn fetch(conn: &Connection, id: i64) -> AppResult<Client> {
+pub fn fetch(conn: &Connection, id: i64) -> AppResult<Client> {
     let sql = format!("{} WHERE c.id = ?1", Client::SELECT);
     conn.query_row(&sql, params![id], |row| Ok(Client::from_row(row)))
         .map_err(|e| match e {

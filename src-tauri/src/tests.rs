@@ -74,6 +74,34 @@ fn business_with_client(conn: &mut Connection) -> (i64, i64) {
     (profile.id, client.id)
 }
 
+/// A one-line invoice, so each test states only what it is actually about.
+fn invoice_input(
+    profile_id: i64,
+    client_id: i64,
+    description: &str,
+    quantity: f64,
+    unit_price_cents: i64,
+) -> InvoiceInput {
+    InvoiceInput {
+        profile_id,
+        client_id,
+        issue_date: "2026-08-01".into(),
+        due_date: "2026-08-15".into(),
+        status: "sent".into(),
+        notes: None,
+        vat_rate_bp: Some(750),
+        discount_cents: 0,
+        amount_paid_cents: 0,
+        show: None,
+        items: vec![LineItemInput {
+            description: description.into(),
+            quantity,
+            unit_price_cents,
+            tax_rate_bp: None,
+        }],
+    }
+}
+
 /// Acceptance: drafts never reach a total or the donut until they are posted.
 #[test]
 fn drafts_stay_out_of_every_total_until_posted() {
@@ -111,20 +139,7 @@ fn marking_an_invoice_paid_posts_exactly_one_linked_transaction() {
 
     let invoice_id = invoice::insert_invoice(
         &mut conn,
-        &InvoiceInput {
-            profile_id,
-            client_id,
-            issue_date: "2026-08-01".into(),
-            due_date: "2026-08-15".into(),
-            status: "sent".into(),
-            notes: None,
-            vat_rate_bp: Some(750),
-            items: vec![LineItemInput {
-                description: "Web app development".into(),
-                quantity: 40.0,
-                unit_price_cents: 12_000_00,
-            }],
-        },
+        &invoice_input(profile_id, client_id, "Web app development", 40.0, 12_000_00),
     )
     .unwrap();
 
@@ -177,20 +192,7 @@ fn a_failed_income_insert_rolls_the_invoice_back_to_unpaid() {
 
     let invoice_id = invoice::insert_invoice(
         &mut conn,
-        &InvoiceInput {
-            profile_id,
-            client_id,
-            issue_date: "2026-08-01".into(),
-            due_date: "2026-08-15".into(),
-            status: "sent".into(),
-            notes: None,
-            vat_rate_bp: Some(750),
-            items: vec![LineItemInput {
-                description: "Support retainer".into(),
-                quantity: 1.0,
-                unit_price_cents: 120_000_00,
-            }],
-        },
+        &invoice_input(profile_id, client_id, "Support retainer", 1.0, 120_000_00),
     )
     .unwrap();
 
@@ -332,20 +334,7 @@ fn invoice_income_cannot_drift_away_from_its_invoice() {
 
     let invoice_id = invoice::insert_invoice(
         &mut conn,
-        &InvoiceInput {
-            profile_id,
-            client_id,
-            issue_date: "2026-08-01".into(),
-            due_date: "2026-08-15".into(),
-            status: "sent".into(),
-            notes: None,
-            vat_rate_bp: Some(750),
-            items: vec![LineItemInput {
-                description: "Hosting setup".into(),
-                quantity: 1.0,
-                unit_price_cents: 70_000_00,
-            }],
-        },
+        &invoice_input(profile_id, client_id, "Hosting setup", 1.0, 70_000_00),
     )
     .unwrap();
 
@@ -394,4 +383,77 @@ fn line_totals_and_vat_stay_in_integer_minor_units() {
     assert_eq!(vat_cents(1, 750), 0, "rounds half up, so a kobo of VAT needs a real base");
     assert_eq!(vat_cents(7, 750), 1);
     assert_eq!(vat_cents(0, 750), 0);
+}
+
+/// Tax is grouped by rate and rounded once per group, so an invoice that mixes a VAT-able
+/// service with an exempt disbursement charges the right tax on each.
+#[test]
+fn mixed_tax_rates_are_taxed_and_rounded_per_rate() {
+    use crate::models::invoice::totals_for;
+
+    // Two lines at 7.5%, one exempt.
+    let lines = [(100_000_00, 750), (50_000_00, 750), (30_000_00, 0)];
+    let t = totals_for(&lines, 0);
+
+    assert_eq!(t.subtotal_cents, 180_000_00);
+    assert_eq!(t.tax_cents, 11_250_00, "7.5% of 150,000 only");
+    assert_eq!(t.total_cents, 191_250_00);
+
+    // Grouping matters: rounding each line separately would drift. Three lines whose
+    // individual taxes each land on a half-kobo still total exactly.
+    let split = [(3_33, 750), (3_33, 750), (3_34, 750)];
+    let whole = [(10_00, 750)];
+    assert_eq!(
+        totals_for(&split, 0).tax_cents,
+        totals_for(&whole, 0).tax_cents,
+        "the same money split across lines must not change the tax"
+    );
+}
+
+/// Discount and amount paid reach the stored totals and the derived balance.
+#[test]
+fn discount_and_amount_paid_reach_the_document_totals() {
+    let mut conn = ledger();
+    let (profile_id, client_id) = business_with_client(&mut conn);
+
+    let mut input = invoice_input(profile_id, client_id, "Brand guidelines", 2.0, 125_000_00);
+    input.discount_cents = 50_000_00;
+    input.amount_paid_cents = 100_000_00;
+
+    let id = invoice::insert_invoice(&mut conn, &input).unwrap();
+    let doc = invoice::detail(&conn, id).unwrap();
+
+    assert_eq!(doc.invoice.subtotal_cents, 250_000_00);
+    assert_eq!(doc.invoice.vat_cents, 18_750_00, "tax is on the undiscounted base");
+    assert_eq!(doc.invoice.discount_cents, 50_000_00);
+    // subtotal - discount + tax
+    assert_eq!(doc.invoice.total_amount_cents, 218_750_00);
+    assert_eq!(doc.invoice.balance_due_cents, 118_750_00, "total less the 100,000 paid");
+}
+
+/// Row visibility is per invoice and survives a reload, so a reopened invoice exports
+/// exactly as it was sent.
+#[test]
+fn document_row_choices_persist_with_the_invoice() {
+    let mut conn = ledger();
+    let (profile_id, client_id) = business_with_client(&mut conn);
+    let id = invoice::insert_invoice(
+        &mut conn,
+        &invoice_input(profile_id, client_id, "Support retainer", 1.0, 120_000_00),
+    )
+    .unwrap();
+
+    let fresh = invoice::detail(&conn, id).unwrap().invoice.show;
+    assert!(fresh.subtotal && fresh.vat && fresh.grand, "sensible defaults");
+    assert!(!fresh.discount && !fresh.paid && !fresh.balance);
+
+    conn.execute(
+        "UPDATE invoices SET show_discount = 1, show_signature = 0 WHERE id = ?1",
+        params![id],
+    )
+    .unwrap();
+
+    let reopened = invoice::detail(&conn, id).unwrap().invoice.show;
+    assert!(reopened.discount);
+    assert!(!reopened.signature);
 }

@@ -19,10 +19,24 @@ interface DraftLine {
   description: string;
   quantity: string;
   unitPrice: string;
+  /** Percent as typed, e.g. "7.5". Empty means zero-rated. */
+  taxPercent: string;
 }
 
-const BLANK_LINE: DraftLine = { description: "", quantity: "1", unitPrice: "" };
-const GRID = "grid-cols-[1fr_90px_150px_130px_40px]";
+const BLANK_LINE: DraftLine = {
+  description: "",
+  quantity: "1",
+  unitPrice: "",
+  taxPercent: "7.5",
+};
+const GRID = "grid-cols-[1fr_72px_128px_84px_118px_40px]";
+
+/** "7.5" -> 750 basis points. Anything unparseable is zero-rated. */
+function taxBp(value: string): number {
+  const n = Number(value.replace(/[%\s]/g, ""));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
 
 /** Quantity is a real number (half days, hours); the price beside it is minor units. */
 function parseQuantity(value: string): number {
@@ -50,11 +64,15 @@ export function NewInvoice() {
   const [issueDate, setIssueDate] = useState(today());
   const [dueDate, setDueDate] = useState(addDays(today(), 14));
   const [notes, setNotes] = useState("");
+  const [discount, setDiscount] = useState("");
+  const [amountPaid, setAmountPaid] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([{ ...BLANK_LINE }]);
   const [saving, setSaving] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
 
   const vatRateBp = Number(settings.vat_rate_bp ?? 750);
+  const discountCents = parseAmountToCents(discount) ?? 0;
+  const amountPaidCents = parseAmountToCents(amountPaid) ?? 0;
 
   // Default to the first client so the summary panel is never blank on arrival.
   useEffect(() => {
@@ -70,11 +88,16 @@ export function NewInvoice() {
     setIssueDate(invoice.issueDate.slice(0, 10));
     setDueDate(invoice.dueDate.slice(0, 10));
     setNotes(invoice.notes ?? "");
+    setDiscount(invoice.discountCents ? amountOnly(invoice.discountCents) : "");
+    setAmountPaid(
+      invoice.amountPaidCents ? amountOnly(invoice.amountPaidCents) : "",
+    );
     setLines(
       invoice.items.map((item) => ({
         description: item.description,
         quantity: String(item.quantity),
         unitPrice: amountOnly(item.unitPriceCents),
+        taxPercent: String(item.taxRateBp / 100),
       })),
     );
     setPrefilled(true);
@@ -84,9 +107,23 @@ export function NewInvoice() {
     () => lines.reduce((sum, line) => sum + lineCents(line), 0),
     [lines],
   );
-  // Mirrors the Rust rounding exactly, so the previewed total is the stored total.
-  const vat = Math.floor((subtotal * vatRateBp + 5000) / 10000);
-  const total = subtotal + vat;
+
+  // Mirrors `totals_for` in Rust exactly — grouped by rate, rounded once per group —
+  // so the figure previewed here is the figure that gets stored.
+  const vat = useMemo(() => {
+    const byRate = new Map<number, number>();
+    for (const line of lines) {
+      const rate = taxBp(line.taxPercent);
+      byRate.set(rate, (byRate.get(rate) ?? 0) + lineCents(line));
+    }
+    let sum = 0;
+    for (const [rate, base] of byRate) {
+      sum += Math.floor((base * rate + 5000) / 10000);
+    }
+    return sum;
+  }, [lines]);
+
+  const total = subtotal - discountCents + vat;
 
   const client = clients.data?.find((c) => c.id === clientId) ?? null;
   const usableLines = lines.filter(
@@ -115,6 +152,7 @@ export function NewInvoice() {
       description: line.description.trim(),
       quantity: parseQuantity(line.quantity),
       unitPriceCents: parseAmountToCents(line.unitPrice) ?? 0,
+      taxRateBp: taxBp(line.taxPercent),
     }));
 
     const input: InvoiceInput = {
@@ -125,6 +163,8 @@ export function NewInvoice() {
       status,
       notes: notes.trim() === "" ? null : notes.trim(),
       vatRateBp,
+      discountCents,
+      amountPaidCents,
       items,
     };
 
@@ -239,6 +279,7 @@ export function NewInvoice() {
                 <div>Description</div>
                 <div className="text-right">Qty</div>
                 <div className="text-right">Unit price</div>
+                <div className="text-right">Tax %</div>
                 <div className="text-right">Amount</div>
                 <div />
               </div>
@@ -263,6 +304,13 @@ export function NewInvoice() {
                     placeholder="0"
                     onChange={(e) => update(index, { unitPrice: e.target.value })}
                   />
+                  <OutlineInput
+                    value={line.taxPercent}
+                    inputMode="decimal"
+                    className="text-right"
+                    placeholder="0"
+                    onChange={(e) => update(index, { taxPercent: e.target.value })}
+                  />
                   <div className="tnum text-right text-[17px] font-bold">
                     {money(lineCents(line))}
                   </div>
@@ -279,6 +327,27 @@ export function NewInvoice() {
                   </button>
                 </div>
               ))}
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex flex-1 flex-col gap-[10px]">
+                <Label optional>Discount</Label>
+                <OutlineInput
+                  value={discount}
+                  inputMode="decimal"
+                  placeholder="0"
+                  onChange={(e) => setDiscount(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-1 flex-col gap-[10px]">
+                <Label optional>Amount already paid</Label>
+                <OutlineInput
+                  value={amountPaid}
+                  inputMode="decimal"
+                  placeholder="0"
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-[10px]">
@@ -340,10 +409,14 @@ export function NewInvoice() {
               <span className="text-muted">Subtotal</span>
               <span>{money(subtotal)}</span>
             </div>
+            {discountCents > 0 ? (
+              <div className="flex justify-between text-[15px]">
+                <span className="text-muted">Discount</span>
+                <span>−{money(discountCents)}</span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-[15px]">
-              <span className="text-muted">
-                VAT {(vatRateBp / 100).toFixed(1)}%
-              </span>
+              <span className="text-muted">Tax</span>
               <span>{money(vat)}</span>
             </div>
             <Divider />
@@ -351,6 +424,14 @@ export function NewInvoice() {
               <span className="font-semibold">Total</span>
               <span className="tnum text-[26px] font-bold">{money(total)}</span>
             </div>
+            {amountPaidCents > 0 ? (
+              <div className="flex justify-between text-[15px]">
+                <span className="text-muted">Balance due</span>
+                <span className="font-semibold">
+                  {money(total - amountPaidCents)}
+                </span>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-auto rounded-[20px] bg-bp-soft px-[18px] py-4 text-[13px] leading-[19px] text-ink">

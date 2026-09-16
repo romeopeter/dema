@@ -3,10 +3,14 @@ use tauri::State;
 
 use crate::commands::{clean, one_of, require_text, settings};
 use crate::error::{AppError, AppResult};
+use crate::models::business::InvoiceDocument;
 use crate::models::invoice::{
-    line_amount_cents, vat_cents, Invoice, InvoiceDetail, InvoiceInput, InvoiceSummary, LineItem,
+    line_amount_cents, totals_for, DocumentRows, Invoice, InvoiceDetail, InvoiceInput,
+    InvoiceSummary, LineItem,
 };
 use crate::state::AppState;
+
+/* ------------------------------------------------------------------------------------ */
 
 fn fetch(conn: &Connection, id: i64) -> AppResult<Invoice> {
     let sql = format!("{} WHERE i.id = ?1", Invoice::SELECT);
@@ -21,7 +25,7 @@ fn fetch(conn: &Connection, id: i64) -> AppResult<Invoice> {
 
 fn fetch_items(conn: &Connection, invoice_id: i64) -> AppResult<Vec<LineItem>> {
     let mut stmt = conn.prepare(
-        "SELECT id, invoice_id, description, quantity, unit_price_cents, position
+        "SELECT id, invoice_id, description, quantity, unit_price_cents, position, tax_rate_bp
          FROM invoice_line_items WHERE invoice_id = ?1 ORDER BY position, id",
     )?;
     let rows = stmt.query_map(params![invoice_id], |row| Ok(LineItem::from_row(row)))?;
@@ -63,8 +67,7 @@ pub fn next_invoice_number(state: State<'_, AppState>, profile_id: i64) -> AppRe
 
 fn next_number(conn: &Connection, profile_id: i64) -> AppResult<String> {
     let prefix = settings::read(conn, "invoice_prefix")?.unwrap_or_else(|| "DW".into());
-    let mut stmt =
-        conn.prepare("SELECT invoice_number FROM invoices WHERE profile_id = ?1")?;
+    let mut stmt = conn.prepare("SELECT invoice_number FROM invoices WHERE profile_id = ?1")?;
     let highest = stmt
         .query_map(params![profile_id], |r| r.get::<_, String>(0))?
         .filter_map(Result::ok)
@@ -79,26 +82,36 @@ fn next_number(conn: &Connection, profile_id: i64) -> AppResult<String> {
     Ok(format!("{prefix}-{:03}", highest + 1))
 }
 
-/// Totals an invoice from its lines. Rounding happens once per line and once for VAT,
-/// so the stored subtotal, VAT and total always add up exactly.
-fn totals(items: &[crate::models::invoice::LineItemInput], vat_rate_bp: i64) -> (i64, i64, i64) {
-    let subtotal: i64 = items
+/// Totals an invoice from its lines, each at its own tax rate.
+fn totals(
+    items: &[crate::models::invoice::LineItemInput],
+    default_rate_bp: i64,
+    discount_cents: i64,
+) -> (i64, i64, i64) {
+    let lines: Vec<(i64, i64)> = items
         .iter()
-        .map(|it| line_amount_cents(it.quantity, it.unit_price_cents))
-        .sum();
-    let vat = vat_cents(subtotal, vat_rate_bp);
-    (subtotal, vat, subtotal + vat)
+        .map(|it| {
+            (
+                line_amount_cents(it.quantity, it.unit_price_cents),
+                it.tax_rate_bp.unwrap_or(default_rate_bp),
+            )
+        })
+        .collect();
+    let t = totals_for(&lines, discount_cents);
+    (t.subtotal_cents, t.tax_cents, t.total_cents)
 }
 
 fn write_items(
     tx: &Transaction<'_>,
     invoice_id: i64,
     items: &[crate::models::invoice::LineItemInput],
+    default_rate_bp: i64,
 ) -> AppResult<()> {
     tx.execute(
         "DELETE FROM invoice_line_items WHERE invoice_id = ?1",
         params![invoice_id],
     )?;
+
     for (position, item) in items.iter().enumerate() {
         let description = require_text("Line description", &item.description)?;
         if item.quantity <= 0.0 {
@@ -111,13 +124,106 @@ fn write_items(
                 "A unit price cannot be negative.".into(),
             ));
         }
+        let rate = item.tax_rate_bp.unwrap_or(default_rate_bp);
+        if !(0..=10_000).contains(&rate) {
+            return Err(AppError::Validation(
+                "A tax rate must be between 0% and 100%.".into(),
+            ));
+        }
         tx.execute(
-            "INSERT INTO invoice_line_items (invoice_id, description, quantity, unit_price_cents, position)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![invoice_id, description, item.quantity, item.unit_price_cents, position as i64],
+            "INSERT INTO invoice_line_items
+               (invoice_id, description, quantity, unit_price_cents, position, tax_rate_bp)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                invoice_id,
+                description,
+                item.quantity,
+                item.unit_price_cents,
+                position as i64,
+                rate
+            ],
         )?;
     }
     Ok(())
+}
+
+fn write_show(tx: &Transaction<'_>, invoice_id: i64, show: DocumentRows) -> AppResult<()> {
+    tx.execute(
+        "UPDATE invoices
+         SET show_subtotal = ?2, show_discount = ?3, show_vat = ?4, show_paid = ?5,
+             show_balance = ?6, show_grand = ?7, show_notes = ?8, show_signature = ?9
+         WHERE id = ?1",
+        params![
+            invoice_id,
+            show.subtotal as i64,
+            show.discount as i64,
+            show.vat as i64,
+            show.paid as i64,
+            show.balance as i64,
+            show.grand as i64,
+            show.notes as i64,
+            show.signature as i64
+        ],
+    )?;
+    Ok(())
+}
+
+/// Toggling a row on the document is its own command: it is the one edit that stays
+/// available on a *paid* invoice, because it changes presentation and not a single figure.
+#[tauri::command]
+pub fn set_invoice_rows(
+    state: State<'_, AppState>,
+    id: i64,
+    show: DocumentRows,
+) -> AppResult<InvoiceDetail> {
+    {
+        let mut conn = state.conn()?;
+        fetch(&conn, id)?;
+        let tx = conn.transaction()?;
+        write_show(&tx, id, show)?;
+        tx.commit()?;
+    }
+    get_invoice(state, id)
+}
+
+/// Everything the printable document needs, assembled in one call.
+#[tauri::command]
+pub fn invoice_document(state: State<'_, AppState>, id: i64) -> AppResult<InvoiceDocument> {
+    let conn = state.conn()?;
+    let invoice = fetch(&conn, id)?;
+    let items = fetch_items(&conn, id)?;
+    let client = crate::commands::client::fetch(&conn, invoice.client_id)?;
+    let business = crate::commands::business::fetch(&conn, invoice.profile_id)?;
+
+    let business_name: String = conn.query_row(
+        "SELECT name FROM profiles WHERE id = ?1",
+        params![invoice.profile_id],
+        |r| r.get(0),
+    )?;
+
+    // Named rather than a bare boolean so the UI can tell someone exactly what to go fix.
+    let mut missing = Vec::new();
+    if business.address.is_none() {
+        missing.push("business address".to_string());
+    }
+    if business.email.is_none() {
+        missing.push("business email".to_string());
+    }
+    if business.bank_name.is_none() || business.account_number.is_none() {
+        missing.push("bank details".to_string());
+    }
+    if invoice.show.signature && business.signature_data_url.is_none() {
+        missing.push("signature image".to_string());
+    }
+
+    Ok(InvoiceDocument {
+        invoice,
+        items,
+        client,
+        business_name,
+        business,
+        missing,
+    })
 }
 
 #[tauri::command]
@@ -140,15 +246,16 @@ pub fn insert_invoice(conn: &mut Connection, input: &InvoiceInput) -> AppResult<
     let id = {
         let default_vat = settings::read_i64(conn, "vat_rate_bp", 750)?;
         let vat_rate_bp = input.vat_rate_bp.unwrap_or(default_vat);
-        let (subtotal, vat, total) = totals(&input.items, vat_rate_bp);
+        let (subtotal, vat, total) = totals(&input.items, vat_rate_bp, input.discount_cents);
         let number = next_number(conn, input.profile_id)?;
 
         let tx = conn.transaction()?;
         tx.execute(
             "INSERT INTO invoices
                (profile_id, client_id, invoice_number, issue_date, due_date, status,
-                subtotal_cents, vat_rate_bp, vat_cents, total_amount_cents, notes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                subtotal_cents, vat_rate_bp, vat_cents, total_amount_cents, notes,
+                discount_cents, amount_paid_cents)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 input.profile_id,
                 input.client_id,
@@ -160,11 +267,16 @@ pub fn insert_invoice(conn: &mut Connection, input: &InvoiceInput) -> AppResult<
                 vat_rate_bp,
                 vat,
                 total,
-                clean(input.notes.clone())
+                clean(input.notes.clone()),
+                input.discount_cents,
+                input.amount_paid_cents
             ],
         )?;
         let id = tx.last_insert_rowid();
-        write_items(&tx, id, &input.items)?;
+        write_items(&tx, id, &input.items, vat_rate_bp)?;
+        if let Some(show) = input.show {
+            write_show(&tx, id, show)?;
+        }
         tx.commit()?;
         id
     };
@@ -195,14 +307,15 @@ pub fn update_invoice(
         }
         let default_vat = settings::read_i64(&conn, "vat_rate_bp", 750)?;
         let vat_rate_bp = input.vat_rate_bp.unwrap_or(default_vat);
-        let (subtotal, vat, total) = totals(&input.items, vat_rate_bp);
+        let (subtotal, vat, total) = totals(&input.items, vat_rate_bp, input.discount_cents);
 
         let tx = conn.transaction()?;
         tx.execute(
             "UPDATE invoices
              SET client_id = ?2, issue_date = ?3, due_date = ?4, status = ?5,
                  subtotal_cents = ?6, vat_rate_bp = ?7, vat_cents = ?8,
-                 total_amount_cents = ?9, notes = ?10
+                 total_amount_cents = ?9, notes = ?10,
+                 discount_cents = ?11, amount_paid_cents = ?12
              WHERE id = ?1",
             params![
                 id,
@@ -214,10 +327,15 @@ pub fn update_invoice(
                 vat_rate_bp,
                 vat,
                 total,
-                clean(input.notes.clone())
+                clean(input.notes.clone()),
+                input.discount_cents,
+                input.amount_paid_cents
             ],
         )?;
-        write_items(&tx, id, &input.items)?;
+        write_items(&tx, id, &input.items, vat_rate_bp)?;
+        if let Some(show) = input.show {
+            write_show(&tx, id, show)?;
+        }
         tx.commit()?;
     }
 
@@ -319,10 +437,15 @@ pub fn reopen_invoice(state: State<'_, AppState>, id: i64) -> AppResult<InvoiceD
         let mut conn = state.conn()?;
         let invoice = fetch(&conn, id)?;
         if invoice.status != "paid" {
-            return Err(AppError::Validation("That invoice is not marked paid.".into()));
+            return Err(AppError::Validation(
+                "That invoice is not marked paid.".into(),
+            ));
         }
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM transactions WHERE invoice_id = ?1", params![id])?;
+        tx.execute(
+            "DELETE FROM transactions WHERE invoice_id = ?1",
+            params![id],
+        )?;
         tx.execute(
             "UPDATE invoices SET status = 'sent', paid_at = NULL WHERE id = ?1",
             params![id],
@@ -338,7 +461,9 @@ pub fn send_invoice(state: State<'_, AppState>, id: i64) -> AppResult<InvoiceDet
         let conn = state.conn()?;
         let invoice = fetch(&conn, id)?;
         if invoice.status != "draft" {
-            return Err(AppError::Validation("That invoice has already been sent.".into()));
+            return Err(AppError::Validation(
+                "That invoice has already been sent.".into(),
+            ));
         }
         conn.execute(
             "UPDATE invoices SET status = 'sent' WHERE id = ?1",

@@ -1,3 +1,4 @@
+pub mod business;
 pub mod category;
 pub mod client;
 pub mod invoice;

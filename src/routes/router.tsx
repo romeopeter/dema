@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { AllTransactions } from "@/routes/AllTransactions";
 import { BusinessOnly } from "@/routes/BusinessOnly";
 import { Home } from "@/routes/Home";
+import { InvoiceDocumentRoute } from "@/routes/InvoiceDocumentRoute";
 import { Invoices } from "@/routes/Invoices";
 import { NewInvoice } from "@/routes/NewInvoice";
 import { Onboarding } from "@/routes/Onboarding";
@@ -17,6 +18,16 @@ import { TransactionForm } from "@/routes/TransactionForm";
  */
 export const router = createMemoryRouter([
   { path: "/onboarding", element: <Onboarding /> },
+  {
+    // Outside the shell on purpose: printing should put the sheet on the page and
+    // nothing else, with no sidebar to hide.
+    path: "/invoices/:id/document",
+    element: (
+      <BusinessOnly>
+        <InvoiceDocumentRoute />
+      </BusinessOnly>
+    ),
+  },
   {
     path: "/",
     element: <AppShell />,
